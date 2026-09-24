@@ -47,6 +47,12 @@ class SecurityRulesTest {
 	}
 
 	@Test
+	void clienteNoPuedeConsultarTodasLasOrdenes() throws Exception {
+		mvc.perform(get("/api/orders").with(jwt().authorities(scope(), role("Cliente"))))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
 	void operadorNoPuedeEliminarOrdenes() throws Exception {
 		mvc.perform(delete("/api/orders/1").with(jwt().authorities(scope(), role("Operador"))))
 				.andExpect(status().isForbidden());

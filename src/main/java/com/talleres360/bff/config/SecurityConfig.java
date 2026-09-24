@@ -38,9 +38,14 @@ public class SecurityConfig {
 			.csrf(csrf -> csrf.disable())
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.authorizeHttpRequests(auth -> auth
-				// Consultar ordenes: cualquier rol
+				// El cliente agenda y consulta exclusivamente sus propias solicitudes.
+				.requestMatchers(HttpMethod.GET, "/api/appointments", "/api/appointments/**")
+					.access(scopeAndRoles("Cliente"))
+				.requestMatchers(HttpMethod.POST, "/api/appointments")
+					.access(scopeAndRoles("Cliente"))
+				// Las ordenes operativas completas contienen datos de todos los clientes.
 				.requestMatchers(HttpMethod.GET, "/api/orders", "/api/orders/**")
-					.access(scopeAndRoles("Admin", "Operador", "Cliente"))
+					.access(scopeAndRoles("Admin", "Operador"))
 				// Crear y modificar ordenes (incluido el cambio de estado): taller
 				.requestMatchers(HttpMethod.POST, "/api/orders", "/api/orders/**")
 					.access(scopeAndRoles("Admin", "Operador"))
