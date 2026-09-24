@@ -38,6 +38,8 @@ public class SecurityConfig {
 			.csrf(csrf -> csrf.disable())
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.authorizeHttpRequests(auth -> auth
+				.requestMatchers(HttpMethod.GET, "/api/products")
+					.access(scopeAndRoles("Admin", "Operador"))
 				// El cliente agenda y consulta exclusivamente sus propias solicitudes.
 				.requestMatchers(HttpMethod.GET, "/api/appointments", "/api/appointments/**")
 					.access(scopeAndRoles("Cliente"))
