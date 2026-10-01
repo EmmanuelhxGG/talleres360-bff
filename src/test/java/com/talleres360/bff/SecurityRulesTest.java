@@ -69,4 +69,18 @@ class SecurityRulesTest {
 		mvc.perform(get("/api/otra-cosa").with(jwt().authorities(scope(), role("Admin"))))
 				.andExpect(status().isForbidden());
 	}
+
+	@Test
+	void operadorNoPuedeModificarCatalogoNiVerReportes() throws Exception {
+		mvc.perform(post("/api/products").with(jwt().authorities(scope(), role("Operador")))
+				.contentType("application/json").content("{}")).andExpect(status().isForbidden());
+		mvc.perform(get("/api/reports/sales").with(jwt().authorities(scope(), role("Operador"))))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void clienteNoPuedeLeerCatalogo() throws Exception {
+		mvc.perform(get("/api/products").with(jwt().authorities(scope(), role("Cliente"))))
+				.andExpect(status().isForbidden());
+	}
 }

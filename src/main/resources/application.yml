@@ -18,6 +18,9 @@ app:
   services:
     # Red interna de Docker: el micro no se expone fuera de la VM
     orders-url: ${ORDERS_URL:http://localhost:8081}
+    catalog-url: ${CATALOG_URL:http://localhost:8082}
+    report-url: ${REPORT_URL:http://localhost:8083}
+    internal-key: ${INTERNAL_API_KEY:}
   cors:
     # Temporal hasta que API Gateway maneje CORS. Separar varios origenes con coma.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.io.IOException;
 import java.net.URI;
@@ -35,7 +36,7 @@ public class OrdersProxyController {
 	@RequestMapping(
 			path = { "/api/orders", "/api/orders/**" },
 			method = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE })
-	public ResponseEntity<byte[]> proxy(HttpServletRequest request, @RequestBody(required = false) byte[] body)
+	public ResponseEntity<byte[]> proxy(HttpServletRequest request, @RequestBody(required = false) byte[] body, JwtAuthenticationToken authentication)
 			throws IOException {
 
 		URI target = URI.create(ordersUrl + request.getRequestURI()
@@ -43,7 +44,9 @@ public class OrdersProxyController {
 
 		RestClient.RequestBodySpec spec = ordersClient
 				.method(HttpMethod.valueOf(request.getMethod()))
-				.uri(target);
+				.uri(target)
+				.header("X-Actor-Email", actor(authentication))
+				.header("X-Actor-Role", actorRole(authentication));
 
 		Optional.ofNullable(request.getContentType())
 				.ifPresent(contentType -> spec.contentType(MediaType.parseMediaType(contentType)));
@@ -60,5 +63,18 @@ public class OrdersProxyController {
 					.headers(headers)
 					.body(res.getBody().readAllBytes());
 		}, false);
+	}
+
+	private String actor(JwtAuthenticationToken authentication) {
+		for (String claim : new String[] { "preferred_username", "email", "upn" }) {
+			String value = authentication.getToken().getClaimAsString(claim);
+			if (value != null && !value.isBlank()) return value;
+		}
+		return authentication.getName();
+	}
+
+	private String actorRole(JwtAuthenticationToken authentication) {
+		var roles = authentication.getToken().getClaimAsStringList("roles");
+		return roles != null && roles.contains("Admin") ? "Admin" : "Operador";
 	}
 }

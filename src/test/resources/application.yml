@@ -10,5 +10,8 @@ spring:
 app:
   services:
     orders-url: http://localhost:8081
+    catalog-url: http://localhost:8082
+    report-url: http://localhost:8083
+    internal-key: test-key
   cors:
     allowed-origins: http://localhost:5173
