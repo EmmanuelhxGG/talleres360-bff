@@ -1,9 +1,9 @@
 # BFF Talleres360 (VM ec2-bff)
 # Uso: docker compose up -d --build
-# Variables (.env): ENTRA_TENANT_ID, API_CLIENT_ID, ORDERS_URL, CORS_ALLOWED_ORIGINS
+# Configuracion privada en .env: Azure, URLs de los tres microservicios y clave interna.
 #
-# Unico servicio expuesto (8080, destino del API Gateway). Los microservicios viven en otra VM
-# (ec2-apps) y se llaman por su IP privada: ORDERS_URL=http://<IP privada de ec2-apps>:8081
+# El BFF expone 8080 como destino del API Gateway. Cada microservicio vive en su propia EC2
+# y se llama por su IP privada: Ordenes 8081, Catalogo 8082 y Reporteria 8083.
 
 services:
   bff:
