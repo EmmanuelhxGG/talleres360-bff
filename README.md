@@ -1,69 +1,175 @@
-# Talleres360 — BFF
+# Talleres360 BFF
 
-Para montar backend, BFF, Security Groups y API Gateway desde cero en otra cuenta AWS, consulta la [guía de despliegue del repositorio backend](../talleres360-backend/DESPLIEGUE_EC2_API_GATEWAY.md).
+Entrada autenticada desarrollada con Java 17, Spring Boot 3.5.6 y Spring Security OAuth2 Resource Server. Puerto **8080**. Rama **`bff-emmanuel`**. Repositorio: [EmmanuelhxGG/talleres360-bff](https://github.com/EmmanuelhxGG/talleres360-bff). Documentación del código al 6 de octubre de 2026.
 
-Spring Boot/Java 17. Es la entrada autenticada a los microservicios: verifica el access token v2 de Microsoft Entra ID (issuer, audiencia, scope y rol) y reenvía órdenes/agendamientos a orders, inventario a catalog y dashboard/auditoría a report. No crea órdenes ni calcula ventas: cada micro conserva esa responsabilidad.
+El BFF valida tokens de Microsoft Entra ID, autoriza por scope/rol, deriva la identidad y reenvía peticiones. No tiene base propia ni calcula precios, stock o ventas.
+
+## Arquitectura
 
 ```text
-Frontend → API Gateway → BFF :8080 → orders :8081
-                                  → catalog :8082
-                                  → report :8083
+Frontend local → API Gateway → BFF :8080
+                                 ├── Órdenes :8081, EC2 propia
+                                 ├── Catálogo :8082, EC2 propia
+                                 └── Reportería :8083, EC2 propia
 ```
+
+Cada destino usa su IP privada en la misma VPC. Este repositorio se construye de forma independiente del antiguo backend agrupado.
+
+## Archivos principales
+
+Las rutas Java parten de `src/main/java/com/talleres360/bff/`.
+
+| Ruta | Responsabilidad |
+| --- | --- |
+| `config/SecurityConfig.java` | JWT, scope y permisos por método/ruta/rol. |
+| `config/CorsConfig.java` | CORS. |
+| `config/OrdersClientConfig.java` | Cliente HTTP con conexión de 3 segundos y lectura de 10 segundos. |
+| `controller/OrdersProxyController.java` | Órdenes; actor y rol obtenidos del JWT. |
+| `controller/AppointmentsProxyController.java` | Solicitudes; correo del cliente obtenido del JWT. |
+| `controller/ProductsProxyController.java` | Catálogo con clave interna del servidor. |
+| `controller/ReportsProxyController.java` | Lectura de ventas y auditoría con clave interna. |
+| `src/main/resources/application.yml` | Puerto, issuer, audiencia, destinos y CORS desde variables. |
+| `src/test/` | Pruebas de autorización y conversión de roles. |
+| `.env.example`, `compose.yml`, `Dockerfile` | Configuración y construcción independiente. |
+
+Los proxies preservan estado y cuerpo del micro, incluidos errores de negocio. Las reglas de órdenes, stock y ventas permanecen en sus respectivos servicios.
 
 ## Entra ID y permisos
 
-La API registrada en Entra debe exponer `api://<API_CLIENT_ID>/access_as_user`, emitir tokens v2 (`requestedAccessTokenVersion: 2`) y definir roles con valores exactos `Cliente`, `Operador` y `Admin`. El token debe llevar `aud = API_CLIENT_ID`, issuer `https://login.microsoftonline.com/<ENTRA_TENANT_ID>/v2.0`, scope `access_as_user` y uno de esos roles. El README del frontend explica los registros SPA/API y asignación de usuarios. El BFF extrae el correo/rol del token para la auditoría; no confía en un encabezado de actor enviado por el navegador.
+Se usa un registro SPA y otro API del mismo tenant. El BFF utiliza tenant e ID de la API, no el ID SPA ni un client secret.
 
-| Ruta | Acceso |
+| Elemento | Configuración del proyecto |
 | --- | --- |
-| `GET/POST /api/appointments`, `GET /api/appointments/availability` | Cliente |
-| `GET/POST/PUT /api/orders/**` | Operador y Admin |
-| `DELETE /api/orders/**` | Solo Admin |
-| `GET /api/products/**` | Operador y Admin |
-| `POST /api/products`, `PUT /api/products/{id}` | Solo Admin |
-| `GET /api/reports/**` | Solo Admin |
+| Issuer | `https://login.microsoftonline.com/<ENTRA_TENANT_ID>/v2.0` |
+| Audiencia | `<API_CLIENT_ID>` |
+| Scope delegado | `access_as_user` |
+| Valores de roles | `Cliente`, `Operador`, `Admin`, respetando mayúsculas. |
+| Scope solicitado por SPA | `api://<API_CLIENT_ID>/access_as_user` |
 
-Todos requieren además el scope delegado. El Operador puede crear una orden, aceptar o cancelar solicitudes, registrar diagnóstico, trabajo, fecha estimada, mano de obra y repuestos, y entregar sin aprobación administrativa. Admin puede hacer esas operaciones, gestionar productos/precios/stock, consultar ventas y auditoría e intervenir en estados con un motivo de al menos 10 caracteres. La autorización efectiva está en `src/main/java/com/talleres360/bff/config/SecurityConfig.java`.
+El registro API se configura para tokens v2. Los roles se asignan a usuarios en su aplicación empresarial. Debe enviarse un **access token** para la API, no el ID token de la sesión.
 
-## Archivos y configuración
+Todos estos accesos requieren además token válido y scope:
 
-`compose.yml` construye el BFF. `src/main/resources/application.yml` lee las variables. `ProductsProxyController.java` y `ReportsProxyController.java` reenvían las rutas nuevas e incorporan la clave interna del servidor; `OrdersProxyController.java` deriva actor y rol del JWT antes de llamar a orders. `SecurityConfig.java` contiene los permisos efectivos; las vistas del frontend solo ocultan controles, no autorizan. Nunca aceptes `X-Actor-*` o `X-Internal-Key` aportados por el navegador como identidad o permiso.
+| Método y ruta | Roles |
+| --- | --- |
+| `GET/POST /api/appointments`, `GET /api/appointments/**` | Cliente |
+| `GET /api/orders`, `GET /api/orders/**` | Operador, Admin |
+| `POST /api/orders`, `PUT /api/orders/**` | Operador, Admin |
+| `DELETE /api/orders/**` | Admin |
+| `GET /api/products`, `GET /api/products/**` | Operador, Admin |
+| `POST /api/products`, `PUT /api/products/**` | Admin |
+| `GET /api/reports/**` | Admin |
 
-Para el stack completo en una PC usa `talleres360-backend/infra/apps/compose.yml` con ambos repositorios como carpetas hermanas; el BFF local queda en `http://localhost:8080`. Configura `INTERNAL_API_KEY` en `talleres360-backend/infra/apps/.env`; el Compose la pasa a todos los servicios. Si levantas el BFF solo en Docker Desktop y los micros corren en el host, usa `host.docker.internal` con puertos 8081–8083 en las tres URL. `localhost` dentro del contenedor es el propio contenedor.
+Las demás rutas se deniegan. `/api/orders/{id}/stock` ya está cubierto por el proxy de órdenes. Los endpoints `/internal/stock-reservations`, `/internal/stock-consumptions` y `/internal/events` son de comunicación entre servidores, no del navegador.
 
-## Despliegue en tu EC2 BFF
+El correo se deriva de `preferred_username`, `email` o `upn`. Para solicitudes se envía `X-Customer-Email`; para órdenes, `X-Actor-Email` y `X-Actor-Role`. No se adopta la identidad enviada por el navegador en esas cabeceras. Catálogo y Reportería reciben `X-Internal-Key` desde la configuración del BFF.
 
-1. Arranca primero los tres micros en la EC2 backend (`infra/ms/compose.yml`). Copia su **IP privada**.
-2. En la EC2 BFF, clona la rama `bff-emmanuel` de tu fork o verifica `git branch --show-current` y `git status` antes de `git pull --ff-only`. Usa tu propio PEM: `ssh -i <ruta-llave.pem> ec2-user@<DNS-de-tu-EC2-BFF>`. No subas la llave a Git.
-3. En la raíz de `talleres360-bff/`, copia `.env.example` a `.env` y completa:
+## Crear y completar .env
 
-   ```dotenv
-   ENTRA_TENANT_ID=<Id-del-tenant>
-   API_CLIENT_ID=<Id-de-la-API-registrada>
-   ORDERS_URL=http://<IP-privada-backend>:8081
-   CATALOG_URL=http://<IP-privada-backend>:8082
-   REPORT_URL=http://<IP-privada-backend>:8083
-   INTERNAL_API_KEY=<misma-clave-aleatoria-larga-de-infra-ms>
-   CORS_ALLOWED_ORIGINS=http://localhost:5173
-   SECURITY_LOG_LEVEL=INFO
-   ```
+Crea `.env` junto a `compose.yml`, usando `.env.example` como plantilla. Sustituye los marcadores:
 
-   Las URL internas **no** incluyen `/dev` ni `/api`. La clave es un secreto: debe coincidir con `infra/ms/.env` y no se publica. Si cambia la IP privada, actualiza las tres URL y recrea BFF.
-4. Ejecuta `docker compose config`, `docker compose up -d --build`, `docker compose ps` y `docker compose logs --tail=100 bff`. Para actualizar una versión nueva: `git pull --ff-only` en la misma rama y `docker compose up -d --build`.
-5. La EC2 backend abre 8081–8083 **solo al Security Group del BFF**; las bases PostgreSQL no publican puertos. BFF publica 8080 al destino de API Gateway; limita SSH 22 a tu IP. Una integración HTTP pública BFF↔Gateway no proporciona aislamiento de red/TLS extremo a extremo: para producción prefiere VPC Link + balanceador privado, con mayor costo y configuración.
-
-Si trasladas el sistema a **otra cuenta AWS**, no reutilices la URL anterior de API Gateway ni supongas que una IP privada antigua seguirá sirviendo. Vuelve a configurar la integración y rutas en Gateway, cambia `VITE_API_BASE_URL` del frontend y actualiza las tres URL internas de este `.env`. Si backend y BFF están en cuentas/VPC distintas, primero conecta sus VPC (por ejemplo, peering con rutas y reglas de red en ambos lados); sin eso, las IP privadas no son alcanzables. El README del backend distingue los dos escenarios y explica las restricciones de Security Group. Los IDs de Entra no cambian por mover AWS si sigues usando el mismo tenant y los mismos registros SPA/API.
-
-## API Gateway y CORS
-
-`VITE_API_BASE_URL` del frontend toma, por ejemplo, `https://<api-id>.execute-api.<region>.amazonaws.com/dev`. Gateway debe pasar `/dev/api/orders` al BFF como `/api/orders`. Configura rutas base y subrutas para `/api/orders`, `/api/appointments`, `/api/products` y `/api/reports/{proxy+}` (o un proxy equivalente), incluida escritura POST/PUT de productos y las subrutas de estado/informe de órdenes. Una ruta base como `/api/products` no cubre por sí sola `/api/products/{id}`; comprueba ambos casos. Las rutas normales llevan autorizador JWT con issuer v2, audiencia del ID de la API y scope `access_as_user`; `OPTIONS` de preflight queda sin auth. CORS: origen exacto del frontend, métodos `GET, POST, PUT, DELETE, OPTIONS` y encabezados `authorization, content-type`.
-
-Prueba desde PowerShell:
-
-```powershell
-curl.exe -i -X OPTIONS "https://<api-id>.execute-api.<region>.amazonaws.com/dev/api/products" -H "Origin: http://localhost:5173" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: authorization,content-type"
+```dotenv
+ENTRA_TENANT_ID=<ID_DEL_TENANT>
+API_CLIENT_ID=<ID_DEL_REGISTRO_API>
+ORDERS_URL=http://<IP_PRIVADA_EC2_ORDENES>:8081
+CATALOG_URL=http://<IP_PRIVADA_EC2_CATALOGO>:8082
+REPORT_URL=http://<IP_PRIVADA_EC2_REPORTES>:8083
+INTERNAL_API_KEY=<CLAVE_INTERNA_COMPARTIDA>
+CORS_ALLOWED_ORIGINS=http://localhost:5173
+SECURITY_LOG_LEVEL=INFO
 ```
 
-Espera 200/204 y `access-control-allow-origin` correcto. Si hay 403 con `Invalid CORS request`, revisa ruta y preflight; 401 con token apunta a issuer/audience/firma, 403 con token válido a scope/rol o autorizador Gateway. Sin token, `curl -i http://localhost:8080/api/products` debe devolver 401.
+Las URL son bases, sin `/api`, `/dev` ni rutas de recursos. La clave coincide con los tres micros. Varios orígenes CORS se separan con coma; incluir esquema y puerto exactos.
 
-Pruebas: `./mvnw test` (Windows: `mvnw.cmd test`). La disponibilidad de agenda todavía no calcula ocupación real. Se probaron los controladores y la compilación, pero no una llamada integral contra las EC2 con esta versión: comprueba autorización con cuentas Cliente, Operador y Admin después de desplegar. No expongas el token, el PEM ni `INTERNAL_API_KEY` en capturas o commits.
+Compose lee `.env` y pasa sus valores al contenedor. Java/Maven directo no carga ese archivo automáticamente: exporta las variables en la terminal. Dentro de Docker, `localhost` identifica el propio contenedor. Si los micros se ejecutan en el host de Docker Desktop, puede usarse `http://host.docker.internal:8081`, `:8082` y `:8083`.
+
+## Construir y ejecutar
+
+La EC2 necesita Git, Docker Engine, Buildx y Compose. El Dockerfile incluye la compilación; no exige Java/Maven en el host.
+
+Desde la raíz, después de completar `.env`:
+
+```bash
+docker buildx version
+docker compose version
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 bff
+```
+
+El contenedor `ms-talleres360-bff` publica `8080:8080` y usa `restart: unless-stopped`. Requiere conectividad con Entra ID y con las IP privadas de los micros.
+
+Con JDK 17 y variables exportadas, fuera de Docker:
+
+```bash
+./mvnw spring-boot:run
+```
+
+En PowerShell: `./mvnw.cmd spring-boot:run`.
+
+## API Gateway y red
+
+El destino de Gateway es el BFF. El frontend utiliza:
+
+```text
+https://<API_ID>.execute-api.<REGION>.amazonaws.com/dev
+```
+
+Gateway debe reenviar `/dev/api/orders` como `/api/orders`. Configura rutas base y subrutas de orders, appointments, products y reports. Una ruta `/api/products` por sí sola no cubre `/api/products/{id}`.
+
+El autorizador JWT utiliza issuer v2, audiencia de la API y scope delegado. CORS permite el origen real del frontend, métodos `GET, POST, PUT, DELETE, OPTIONS` y encabezados `authorization, content-type`. El preflight OPTIONS no exige token.
+
+Los Security Groups permiten al BFF llegar a 8081–8083; Catálogo y Reportería también reciben Órdenes. PostgreSQL no se publica. El puerto 8080 es destino HTTP del Gateway en esta distribución: JWT no cifra por sí mismo ese tramo HTTP. SSH se limita a las IP autorizadas y los micros no se abren a Internet.
+
+| Cambio de dirección | Qué modificar |
+| --- | --- |
+| IP privada de un micro | Su URL en este `.env` y recrear BFF. |
+| Dirección pública del BFF | Integración de Gateway. |
+| Gateway/stage | `VITE_API_BASE_URL` del frontend. |
+| Tenant/registro API | Variables BFF, frontend y autorizador Gateway. |
+
+Mover AWS no obliga a cambiar Entra si se conservan tenant y registros.
+
+## Comprobación y diagnóstico
+
+Sin token debe responder 401:
+
+```bash
+curl -i http://localhost:8080/api/orders
+```
+
+Preflight desde PowerShell, reemplazando la URL:
+
+```powershell
+curl.exe -i -X OPTIONS "https://<API_ID>.execute-api.<REGION>.amazonaws.com/dev/api/orders" -H "Origin: http://localhost:5173" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: authorization,content-type"
+```
+
+Espera 200/204 con el origen permitido. Esto comprueba CORS, no el circuito autenticado completo.
+
+| Resultado | Revisar |
+| --- | --- |
+| 401 | Token, issuer, audiencia y vencimiento. |
+| 403 | Scope, roles y permisos en Gateway/BFF. |
+| Invalid CORS request | Origen, preflight y ruta sin prefijo de stage. |
+| Error de conexión | URL privada, puerto, grupo de seguridad y contenedor destino. |
+| 409 de orden | Regla de negocio del micro; conservar el error. |
+
+Pruebas:
+
+```bash
+./mvnw test
+```
+
+En PowerShell: `./mvnw.cmd test`. `SecurityRulesTest` valida roles/scope y `RolesClaimConverterTest` la conversión de roles.
+
+## Actualizar y proteger configuración
+
+Comprueba rama y cambios locales. Con el código publicado y sin conflictos:
+
+```bash
+git pull --ff-only origin bff-emmanuel
+docker compose up -d --build
+```
+
+Reiniciar no descarga Git ni reconstruye imágenes. No publicar `.env`, PEM, tokens o clave interna. Mantener `SECURITY_LOG_LEVEL=INFO` para operación normal. Esta documentación no modifica ni certifica una configuración AWS concreta.
