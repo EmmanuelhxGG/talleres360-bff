@@ -19,6 +19,8 @@ services:
       ORDERS_URL: ${ORDERS_URL}
       CATALOG_URL: ${CATALOG_URL}
       REPORT_URL: ${REPORT_URL}
+      NOTIFICATIONS_URL: ${NOTIFICATIONS_URL:?Configura la URL privada de Notificaciones en .env}
+      AUDIT_URL: ${AUDIT_URL:?Configura la URL privada de Auditoria en .env}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       # DEBUG para diagnosticar 401/403 (ver las authorities del token)
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY: ${SECURITY_LOG_LEVEL:-INFO}

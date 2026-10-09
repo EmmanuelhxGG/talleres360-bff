@@ -6,3 +6,8 @@ Dockerfile
 .dockerignore
 .gitignore
 .gitattributes
+.git/
+.env
+.env.*
+*.pem
+*.key

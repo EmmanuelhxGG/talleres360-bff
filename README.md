@@ -10,7 +10,9 @@ El BFF valida tokens de Microsoft Entra ID, autoriza por scope/rol, deriva la id
 Frontend local → API Gateway → BFF :8080
                                  ├── Órdenes :8081, EC2 propia
                                  ├── Catálogo :8082, EC2 propia
-                                 └── Reportería :8083, EC2 propia
+                                 ├── Reportería :8083, EC2 propia
+                                 ├── Notificaciones :8084, EC2 propia
+                                 └── Auditoría :8085, EC2 propia
 ```
 
 Cada destino usa su IP privada en la misma VPC. Este repositorio se construye de forma independiente del antiguo backend agrupado.
@@ -27,9 +29,9 @@ Las rutas Java parten de `src/main/java/com/talleres360/bff/`.
 | `controller/OrdersProxyController.java` | Órdenes; actor y rol obtenidos del JWT. |
 | `controller/AppointmentsProxyController.java` | Solicitudes; correo del cliente obtenido del JWT. |
 | `controller/ProductsProxyController.java` | Catálogo con clave interna del servidor. |
-| `controller/ReportsProxyController.java` | Lectura de ventas y auditoría con clave interna. |
+| `controller/ReportsProxyController.java` | Lectura de ventas con clave interna. |
+| `controller/SeguimientoProxyController.java`, `service/ProxySeguimiento.java` | Notificaciones y auditoría: rutas explícitas, rol/correo derivados del JWT y errores personalizados. |
 | `src/main/resources/application.yml` | Puerto, issuer, audiencia, destinos y CORS desde variables. |
-| `src/test/` | Pruebas de autorización y conversión de roles. |
 | `.env.example`, `compose.yml`, `Dockerfile` | Configuración y construcción independiente. |
 
 Los proxies preservan estado y cuerpo del micro, incluidos errores de negocio. Las reglas de órdenes, stock y ventas permanecen en sus respectivos servicios.
@@ -59,6 +61,8 @@ Todos estos accesos requieren además token válido y scope:
 | `GET /api/products`, `GET /api/products/**` | Operador, Admin |
 | `POST /api/products`, `PUT /api/products/**` | Admin |
 | `GET /api/reports/**` | Admin |
+| `GET /api/notifications` | Operador (tickets), Cliente (solo correos propios) |
+| `GET /api/audit`, `GET /api/audit/events` | Admin, solo lectura |
 
 Las demás rutas se deniegan. `/api/orders/{id}/stock` ya está cubierto por el proxy de órdenes. Los endpoints `/internal/stock-reservations`, `/internal/stock-consumptions` y `/internal/events` son de comunicación entre servidores, no del navegador.
 
@@ -74,12 +78,26 @@ API_CLIENT_ID=<ID_DEL_REGISTRO_API>
 ORDERS_URL=http://<IP_PRIVADA_EC2_ORDENES>:8081
 CATALOG_URL=http://<IP_PRIVADA_EC2_CATALOGO>:8082
 REPORT_URL=http://<IP_PRIVADA_EC2_REPORTES>:8083
+NOTIFICATIONS_URL=http://<IP_PRIVADA_EC2_NOTIFICACIONES>:8084
+AUDIT_URL=http://<IP_PRIVADA_EC2_AUDITORIA>:8085
 INTERNAL_API_KEY=<CLAVE_INTERNA_COMPARTIDA>
 CORS_ALLOWED_ORIGINS=http://localhost:5173
 SECURITY_LOG_LEVEL=INFO
 ```
 
-Las URL son bases, sin `/api`, `/dev` ni rutas de recursos. La clave coincide con los tres micros. Varios orígenes CORS se separan con coma; incluir esquema y puerto exactos.
+Las URL son bases, sin `/api`, `/dev` ni rutas de recursos. La clave coincide con los cinco micros. Varios orígenes CORS se separan con coma; incluir esquema y puerto exactos.
+
+### Notificaciones y auditoría
+
+La matriz sigue el caso: Notificaciones para Operador/Cliente; Auditoría para Admin según la sección específica de la pantalla `/audit`. La tabla general menciona Auditor, pero no se incorpora un cuarto rol en Azure sin una definición consistente.
+
+El BFF construye `X-Actor-Role` y, para Cliente, `X-Customer-Email` a partir del token validado. Ignora las cabeceras de identidad y clave interna del navegador. Notificaciones aplica el filtro de propietario en la base, incluso cuando se solicita otro `orderId`. Admin no tiene acceso público a notificaciones y las rutas internas y de reintento no se publican.
+
+`GET /api/reports/audit` se conserva para el dashboard, pero se dirige al servicio de Auditoría; `/api/reports/sales` continúa en Reportería. Las consultas nuevas no se cachean. Ante caídas o credenciales internas rechazadas devuelven un mensaje personalizado sin revelar URLs ni respuestas técnicas.
+
+API Gateway mantiene como integración el BFF. Si utiliza `ANY /{proxy+}` o una ruta equivalente, las nuevas rutas pasan por esa integración. Si utiliza rutas explícitas, añadir `GET /api/notifications`, `GET /api/audit` y `GET /api/audit/events`, con el mismo JWT authorizer. No publicar `/internal/**`. Este cambio de código no modifica la configuración de AWS.
+
+La revisión local del 8 de octubre verificó el flujo de los cinco servicios con bases H2 descartables y JWT simulados: creación, aceptación, informe, entrega, stock, ventas, notificaciones y auditoría. No certifica un login real en Azure ni el despliegue AWS. Los archivos de pruebas no forman parte de esta versión.
 
 Compose lee `.env` y pasa sus valores al contenedor. Java/Maven directo no carga ese archivo automáticamente: exporta las variables en la terminal. Dentro de Docker, `localhost` identifica el propio contenedor. Si los micros se ejecutan en el host de Docker Desktop, puede usarse `http://host.docker.internal:8081`, `:8082` y `:8083`.
 
@@ -155,13 +173,13 @@ Espera 200/204 con el origen permitido. Esto comprueba CORS, no el circuito aute
 | Error de conexión | URL privada, puerto, grupo de seguridad y contenedor destino. |
 | 409 de orden | Regla de negocio del micro; conservar el error. |
 
-Pruebas:
+Empaquetado:
 
 ```bash
-./mvnw test
+./mvnw -DskipTests package
 ```
 
-En PowerShell: `./mvnw.cmd test`. `SecurityRulesTest` valida roles/scope y `RolesClaimConverterTest` la conversión de roles.
+En PowerShell: `./mvnw.cmd '-DskipTests' package`. El empaquetado no ejecuta pruebas funcionales.
 
 ## Actualizar y proteger configuración
 
