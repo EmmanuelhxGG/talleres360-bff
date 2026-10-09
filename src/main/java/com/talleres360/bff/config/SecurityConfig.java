@@ -38,7 +38,11 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers(HttpMethod.GET, "/api/notifications")
+                auth.requestMatchers("/api/messaging/**")
+                    .access(scopeAndRoles("Admin"))
+                    .requestMatchers(HttpMethod.GET, "/api/notifications/*/receipt")
+                    .access(scopeAndRoles("Admin", "Operador", "Cliente"))
+                    .requestMatchers(HttpMethod.GET, "/api/notifications")
                     .access(scopeAndRoles("Operador", "Cliente"))
                     .requestMatchers(HttpMethod.GET, "/api/audit", "/api/audit/events")
                     .access(scopeAndRoles("Admin"))

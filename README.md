@@ -17,6 +17,14 @@ Frontend local → API Gateway → BFF :8080
 
 Cada destino usa su IP privada en la misma VPC. Este repositorio se construye de forma independiente del antiguo backend agrupado.
 
+La administración de mensajería usa destinos privados separados:
+`RABBIT_ADMIN_URL` (8086) y `KAFKA_ADMIN_URL` (8087). El BFF ofrece
+`/api/messaging/rabbit/**` y `/api/messaging/kafka/**` únicamente para Admin,
+con JWT y scope válidos; deriva la credencial interna en el servidor.
+Nunca acepta una URL destino enviada por el navegador. RabbitMQ/Kafka no reciben
+conexiones directas del frontend. El comprobante PDF se consulta en
+`/api/notifications/{id}/receipt`, con autorización por rol y propietario.
+
 ## Archivos principales
 
 Las rutas Java parten de `src/main/java/com/talleres360/bff/`.

@@ -74,6 +74,10 @@ public class ProxySeguimiento {
             HttpHeaders headers = new HttpHeaders();
             if (res.getHeaders().getContentType() != null)
               headers.setContentType(res.getHeaders().getContentType());
+            if (res.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION) != null)
+              headers.set(
+                  HttpHeaders.CONTENT_DISPOSITION,
+                  res.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION));
             headers.setCacheControl("no-store");
             return ResponseEntity.status(res.getStatusCode())
                 .headers(headers)
