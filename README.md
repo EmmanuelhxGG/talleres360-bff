@@ -6,7 +6,8 @@ El BFF valida tokens de Microsoft Entra ID, autoriza por scope/rol, deriva la id
 
 ## Registro, catálogo y compras
 
-- `POST /api/registros` es público, limitado y solo admite nombre/correo institucional.
+- `POST /api/registros` requiere JWT y scope `access_as_user`, sin exigir aún rol Cliente.
+  Solo admite una identidad institucional y obtiene su correo del token, no del cuerpo.
   `GET /api/registros` requiere Admin. El alta y el rol se aprueban manualmente en Entra.
 - `GET/POST /api/compras` requiere Cliente con correo `@duocuc.cl` en el JWT.
   El BFF deriva el destinatario del token y no confía en un correo enviado por React.
@@ -16,9 +17,9 @@ El BFF valida tokens de Microsoft Entra ID, autoriza por scope/rol, deriva la id
 - El comprobante se descarga con JWT por `/api/notifications/{id}/receipt`;
   un cliente no puede descargar el de otro.
 
-En API Gateway debe existir una ruta exacta **POST /api/registros** sin authorizer
-JWT, dirigida a la misma integración del BFF. No quitar el authorizer de las demás
-rutas: la excepción solo recibe solicitudes de acceso, no las aprueba.
+Todas las rutas de datos de API Gateway, incluido **POST /api/registros**, mantienen
+el authorizer JWT. No crear excepciones públicas para registro. Un usuario todavía
+no invitado al tenant debe solicitar primero su invitación al administrador de Entra.
 
 ## Arquitectura
 

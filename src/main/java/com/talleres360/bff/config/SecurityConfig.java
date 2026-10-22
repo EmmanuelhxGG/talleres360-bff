@@ -38,7 +38,7 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers(HttpMethod.POST, "/api/registros").permitAll()
+                auth.requestMatchers(HttpMethod.POST, "/api/registros").hasAuthority(SCOPE)
                     .requestMatchers(HttpMethod.GET, "/api/registros").access(scopeAndRoles("Admin"))
                     .requestMatchers(HttpMethod.GET, "/api/compras").access(scopeAndRoles("Cliente"))
                     .requestMatchers(HttpMethod.POST, "/api/compras").access(scopeAndRoles("Cliente"))
