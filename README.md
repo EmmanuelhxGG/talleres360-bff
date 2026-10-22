@@ -10,7 +10,11 @@ El BFF valida tokens de Microsoft Entra ID, autoriza por scope/rol, deriva la id
   Solo admite una identidad institucional y obtiene su correo del token, no del cuerpo.
   `GET /api/registros` requiere Admin. El alta y el rol se aprueban manualmente en Entra.
 - `GET/POST /api/compras` requiere Cliente con correo `@duocuc.cl` en el JWT.
-  El BFF deriva el destinatario del token y no confía en un correo enviado por React.
+  El BFF deriva destinatario y nombre del token y no confía en identidad enviada por
+  React. El carrito contiene solo UUID, productos y cantidades, sin RUT/teléfono/taller.
+- Crear órdenes (`POST /api/orders`) requiere Admin. Operador puede consultar y
+  gestionar solicitudes existentes, pero no crearlas, tanto en UI como en la API.
+- Órdenes asigna una única sede desde el servidor. Ya no se envían regiones ni sucursales.
 - Cliente, Operador y Admin consultan productos/categorías. Solo Admin puede
   crear, editar o dar de baja productos y categorías mediante `/api/products`
   y `/api/categorias`.
@@ -19,7 +23,8 @@ El BFF valida tokens de Microsoft Entra ID, autoriza por scope/rol, deriva la id
 
 Todas las rutas de datos de API Gateway, incluido **POST /api/registros**, mantienen
 el authorizer JWT. No crear excepciones públicas para registro. Un usuario todavía
-no invitado al tenant debe solicitar primero su invitación al administrador de Entra.
+habilitado en el tenant debe gestionar su acceso con la persona responsable de
+Entra ID. La aplicación no invita usuarios ni crea aprobaciones nativas en Entra.
 
 ## Arquitectura
 
@@ -39,8 +44,9 @@ La administración de mensajería usa destinos privados separados:
 `/api/messaging/rabbit/**` únicamente para Admin,
 con JWT y scope válidos; deriva la credencial interna en el servidor.
 Nunca acepta una URL destino enviada por el navegador. RabbitMQ no recibe
-conexiones directas del frontend. El comprobante PDF se consulta en
-`/api/notifications/{id}/receipt`, con autorización por rol y propietario.
+conexiones directas del frontend. Los correos nuevos llevan el comprobante en
+texto, sin PDF ni adjuntos. `/api/notifications/{id}/receipt` se conserva solo para
+comprobantes históricos, con autorización por rol y propietario.
 
 Kafka y su ruta administrativa fueron retirados el 21 de octubre de 2026.
 Reportería y Auditoría conservan las mismas rutas de consulta y reciben sus
@@ -85,9 +91,10 @@ Todos estos accesos requieren además token válido y scope:
 | --- | --- |
 | `GET/POST /api/appointments`, `GET /api/appointments/**` | Cliente |
 | `GET /api/orders`, `GET /api/orders/**` | Operador, Admin |
-| `POST /api/orders`, `PUT /api/orders/**` | Operador, Admin |
+| `POST /api/orders` | Admin |
+| `PUT /api/orders/**` | Operador, Admin |
 | `DELETE /api/orders/**` | Admin |
-| `GET /api/products`, `GET /api/products/**` | Operador, Admin |
+| `GET /api/products`, `GET /api/products/**` | Cliente, Operador, Admin |
 | `POST /api/products`, `PUT /api/products/**` | Admin |
 | `GET /api/reports/**` | Admin |
 | `GET /api/notifications` | Operador (tickets), Cliente (solo correos propios) |

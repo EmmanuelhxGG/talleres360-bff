@@ -69,9 +69,9 @@ public class SecurityConfig {
                     // Las ordenes operativas completas contienen datos de todos los clientes.
                     .requestMatchers(HttpMethod.GET, "/api/orders", "/api/orders/**")
                     .access(scopeAndRoles("Admin", "Operador"))
-                    // Crear y modificar ordenes (incluido el cambio de estado): taller
+                    // Solo Admin crea; el Operador gestiona solicitudes ya recibidas.
                     .requestMatchers(HttpMethod.POST, "/api/orders", "/api/orders/**")
-                    .access(scopeAndRoles("Admin", "Operador"))
+                    .access(scopeAndRoles("Admin"))
                     .requestMatchers(HttpMethod.PUT, "/api/orders/**")
                     .access(scopeAndRoles("Admin", "Operador"))
                     // Eliminar: solo administrador
