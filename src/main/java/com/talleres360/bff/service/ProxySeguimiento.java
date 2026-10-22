@@ -42,7 +42,7 @@ public class ProxySeguimiento {
           HttpStatus.FORBIDDEN, "Tu cuenta no tiene permisos para consultar esta información.");
     String correo = null;
     if (rol.equals("Cliente")) {
-      for (String claim : new String[] {"preferred_username", "email", "upn"}) {
+      for (String claim : new String[] {"email", "preferred_username", "upn"}) {
         String valor = identidad.getToken().getClaimAsString(claim);
         if (valor != null && !valor.isBlank()) {
           correo = valor;

@@ -4,6 +4,22 @@ Entrada autenticada desarrollada con Java 17, Spring Boot 3.5.6 y Spring Securit
 
 El BFF valida tokens de Microsoft Entra ID, autoriza por scope/rol, deriva la identidad y reenvía peticiones. No tiene base propia ni calcula precios, stock o ventas.
 
+## Registro, catálogo y compras
+
+- `POST /api/registros` es público, limitado y solo admite nombre/correo institucional.
+  `GET /api/registros` requiere Admin. El alta y el rol se aprueban manualmente en Entra.
+- `GET/POST /api/compras` requiere Cliente con correo `@duocuc.cl` en el JWT.
+  El BFF deriva el destinatario del token y no confía en un correo enviado por React.
+- Cliente, Operador y Admin consultan productos/categorías. Solo Admin puede
+  crear, editar o dar de baja productos y categorías mediante `/api/products`
+  y `/api/categorias`.
+- El comprobante se descarga con JWT por `/api/notifications/{id}/receipt`;
+  un cliente no puede descargar el de otro.
+
+En API Gateway debe existir una ruta exacta **POST /api/registros** sin authorizer
+JWT, dirigida a la misma integración del BFF. No quitar el authorizer de las demás
+rutas: la excepción solo recibe solicitudes de acceso, no las aprueba.
+
 ## Arquitectura
 
 ```text
@@ -18,12 +34,16 @@ Frontend local → API Gateway → BFF :8080
 Cada destino usa su IP privada en la misma VPC. Este repositorio se construye de forma independiente del antiguo backend agrupado.
 
 La administración de mensajería usa destinos privados separados:
-`RABBIT_ADMIN_URL` (8086) y `KAFKA_ADMIN_URL` (8087). El BFF ofrece
-`/api/messaging/rabbit/**` y `/api/messaging/kafka/**` únicamente para Admin,
+`RABBIT_ADMIN_URL` (8086). El BFF ofrece
+`/api/messaging/rabbit/**` únicamente para Admin,
 con JWT y scope válidos; deriva la credencial interna en el servidor.
-Nunca acepta una URL destino enviada por el navegador. RabbitMQ/Kafka no reciben
+Nunca acepta una URL destino enviada por el navegador. RabbitMQ no recibe
 conexiones directas del frontend. El comprobante PDF se consulta en
 `/api/notifications/{id}/receipt`, con autorización por rol y propietario.
+
+Kafka y su ruta administrativa fueron retirados el 21 de octubre de 2026.
+Reportería y Auditoría conservan las mismas rutas de consulta y reciben sus
+eventos desde el outbox HTTP de Órdenes. El frontend no necesita otras URL.
 
 ## Archivos principales
 

@@ -23,7 +23,6 @@ app:
     notifications-url: ${NOTIFICATIONS_URL:http://localhost:8084}
     audit-url: ${AUDIT_URL:http://localhost:8085}
     rabbit-admin-url: ${RABBIT_ADMIN_URL:http://localhost:8086}
-    kafka-admin-url: ${KAFKA_ADMIN_URL:http://localhost:8087}
     internal-key: ${INTERNAL_API_KEY:}
   cors:
     # Temporal hasta que API Gateway maneje CORS. Separar varios origenes con coma.

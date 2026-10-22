@@ -12,19 +12,16 @@ import org.springframework.web.client.RestClient;
 @RestController
 public class MensajeriaProxyController {
   private final RestClient cliente;
-  private final String rabbit, kafka, clave;
+  private final String rabbit, clave;
 
   public MensajeriaProxyController(
-      RestClient ordersClient,
       @Value("${app.services.rabbit-admin-url}") String rabbit,
-      @Value("${app.services.kafka-admin-url}") String kafka,
       @Value("${app.services.internal-key}") String clave) {
     var tiempos = new org.springframework.http.client.SimpleClientHttpRequestFactory();
     tiempos.setConnectTimeout(3000);
     tiempos.setReadTimeout(20000);
     this.cliente = RestClient.builder().requestFactory(tiempos).build();
     this.rabbit = rabbit;
-    this.kafka = kafka;
     this.clave = clave;
   }
 
@@ -41,7 +38,6 @@ public class MensajeriaProxyController {
     String base =
         switch (sistema) {
           case "rabbit" -> rabbit;
-          case "kafka" -> kafka;
           default -> null;
         };
     if (base == null) return error(HttpStatus.NOT_FOUND);

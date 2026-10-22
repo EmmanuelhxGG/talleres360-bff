@@ -25,8 +25,8 @@ public class ProductsProxyController {
   }
 
   @RequestMapping(
-      path = {"/api/products", "/api/products/**"},
-      method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT})
+      path = {"/api/products", "/api/products/**", "/api/categorias", "/api/categorias/**"},
+      method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE})
   public ResponseEntity<byte[]> proxy(
       HttpServletRequest request, @RequestBody(required = false) byte[] body) throws IOException {
     URI target =

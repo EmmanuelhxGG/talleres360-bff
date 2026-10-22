@@ -38,7 +38,11 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers("/api/messaging/**")
+                auth.requestMatchers(HttpMethod.POST, "/api/registros").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/registros").access(scopeAndRoles("Admin"))
+                    .requestMatchers(HttpMethod.GET, "/api/compras").access(scopeAndRoles("Cliente"))
+                    .requestMatchers(HttpMethod.POST, "/api/compras").access(scopeAndRoles("Cliente"))
+                    .requestMatchers("/api/messaging/**")
                     .access(scopeAndRoles("Admin"))
                     .requestMatchers(HttpMethod.GET, "/api/notifications/*/receipt")
                     .access(scopeAndRoles("Admin", "Operador", "Cliente"))
@@ -47,11 +51,14 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.GET, "/api/audit", "/api/audit/events")
                     .access(scopeAndRoles("Admin"))
                     .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**")
-                    .access(scopeAndRoles("Admin", "Operador"))
+                    .access(scopeAndRoles("Admin", "Operador", "Cliente"))
                     .requestMatchers(HttpMethod.POST, "/api/products")
                     .access(scopeAndRoles("Admin"))
                     .requestMatchers(HttpMethod.PUT, "/api/products/**")
                     .access(scopeAndRoles("Admin"))
+                    .requestMatchers(HttpMethod.DELETE, "/api/products/**").access(scopeAndRoles("Admin"))
+                    .requestMatchers(HttpMethod.GET, "/api/categorias", "/api/categorias/**").access(scopeAndRoles("Admin","Operador","Cliente"))
+                    .requestMatchers("/api/categorias", "/api/categorias/**").access(scopeAndRoles("Admin"))
                     .requestMatchers(HttpMethod.GET, "/api/reports/**")
                     .access(scopeAndRoles("Admin"))
                     // El cliente agenda y consulta exclusivamente sus propias solicitudes.
@@ -100,7 +107,12 @@ public class SecurityConfig {
           Collection<GrantedAuthority> authorities = new ArrayList<>(scopes.convert(jwt));
           List<String> roles = jwt.getClaimAsStringList("roles");
           if (roles != null) {
-            roles.forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+            roles.forEach(role -> {
+              boolean institucional = java.util.stream.Stream.of("email","preferred_username","upn")
+                  .map(jwt::getClaimAsString).anyMatch(c -> c != null && c.matches("(?i)^[^\\s@]+@duocuc\\.cl$"));
+              if (!"Cliente".equals(role) || institucional)
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+            });
           }
           return authorities;
         });
