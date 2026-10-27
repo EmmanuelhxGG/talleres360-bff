@@ -26,11 +26,14 @@ public class OrdersProxyController {
 
   private final RestClient ordersClient;
   private final String ordersUrl;
+  private final String internalKey;
 
   public OrdersProxyController(
-      RestClient ordersClient, @Value("${app.services.orders-url}") String ordersUrl) {
+      RestClient ordersClient, @Value("${app.services.orders-url}") String ordersUrl,
+      @Value("${app.services.internal-key}") String internalKey) {
     this.ordersClient = ordersClient;
     this.ordersUrl = ordersUrl;
+    this.internalKey = internalKey;
   }
 
   @RequestMapping(
@@ -52,6 +55,7 @@ public class OrdersProxyController {
         ordersClient
             .method(HttpMethod.valueOf(request.getMethod()))
             .uri(target)
+            .header("X-Internal-Key", internalKey)
             .header("X-Actor-Email", actor(authentication))
             .header("X-Actor-Role", actorRole(authentication));
 
@@ -65,6 +69,7 @@ public class OrdersProxyController {
     return spec.exchange(
         (req, res) -> {
           HttpHeaders headers = new HttpHeaders();
+          headers.setCacheControl("no-store");
           Optional.ofNullable(res.getHeaders().getContentType()).ifPresent(headers::setContentType);
 
           return ResponseEntity.status(res.getStatusCode())
