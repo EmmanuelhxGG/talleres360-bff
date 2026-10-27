@@ -49,7 +49,7 @@ public class SecurityConfig {
                     .access(scopeAndRoles("Admin", "Operador", "Cliente"))
                     .requestMatchers(HttpMethod.GET, "/api/notifications")
                     .access(scopeAndRoles("Operador", "Cliente"))
-                    .requestMatchers(HttpMethod.GET, "/api/audit", "/api/audit/events")
+                    .requestMatchers(HttpMethod.GET, "/api/audit", "/api/audit/events", "/api/audit/solicitudes")
                     .access(scopeAndRoles("Admin"))
                     .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**")
                     .access(scopeAndRoles("Admin"))

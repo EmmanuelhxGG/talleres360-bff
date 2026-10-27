@@ -36,7 +36,7 @@ public class SeguimientoProxyController {
         notificaciones, request, identidad, Set.of("Admin", "Operador", "Cliente"));
   }
 
-  @GetMapping({"/api/audit", "/api/audit/events", "/api/reports/audit"})
+  @GetMapping({"/api/audit", "/api/audit/events", "/api/audit/solicitudes", "/api/reports/audit"})
   public ResponseEntity<byte[]> auditoria(
       HttpServletRequest request, JwtAuthenticationToken identidad) {
     return proxy.consultar(auditoria, request, identidad, Set.of("Admin"));

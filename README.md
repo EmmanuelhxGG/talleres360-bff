@@ -119,7 +119,7 @@ Todos estos accesos requieren además token válido y scope:
 | `POST /api/categorias`, `PUT/DELETE /api/categorias/**` | Admin |
 | `GET /api/reports/**` | Admin |
 | `GET /api/notifications` | Operador (tickets), Cliente (solo correos propios) |
-| `GET /api/audit`, `GET /api/audit/events` | Admin, solo lectura |
+| `GET /api/audit`, `GET /api/audit/events`, `GET /api/audit/solicitudes` | Admin, solo lectura |
 | `GET /api/notifications/{id}/receipt` | Admin, Operador o Cliente; el servicio comprueba acceso al documento histórico |
 | `/api/messaging/rabbit/**` | Admin |
 
@@ -154,6 +154,12 @@ Notificaciones corresponde a Operador/Cliente y Auditoría a Admin. Los roles im
 El BFF construye `X-Actor-Role` y, para Cliente, `X-Customer-Email` a partir del token validado. Ignora las cabeceras de identidad y clave interna del navegador. Notificaciones aplica el filtro de propietario en la base, incluso cuando se solicita otro `orderId`. Admin no tiene acceso público a notificaciones y las rutas internas y de reintento no se publican.
 
 `GET /api/reports/audit` se conserva para el dashboard, pero se dirige al servicio de Auditoría; `/api/reports/sales` continúa en Reportería. Las consultas nuevas no se cachean. Ante caídas o credenciales internas rechazadas devuelven un mensaje personalizado sin revelar URLs ni respuestas técnicas.
+
+`GET /api/audit/solicitudes` devuelve solicitudes agrupadas y paginadas, con
+`orderId`, cantidad de `eventos` y `ultimaActividad`. Aplica los mismos filtros que
+la consulta de eventos. Al desplegar una solicitud, el frontend consulta
+`GET /api/audit?orderId=...` para cargar su historial. Ambas rutas exigen JWT,
+scope y rol Admin; no se publican escrituras ni cambia el acceso de otros roles.
 
 API Gateway mantiene como integración el BFF. Si utiliza `ANY /{proxy+}` o una ruta equivalente, las nuevas rutas pasan por esa integración. Si utiliza rutas explícitas, añadir `GET /api/notifications`, `GET /api/audit` y `GET /api/audit/events`, con el mismo JWT authorizer. No publicar `/internal/**`. Este cambio de código no modifica la configuración de AWS.
 
