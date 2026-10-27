@@ -1,4 +1,5 @@
 package com.talleres360.bff.controller;
+import com.talleres360.bff.service.CorreoAutenticado;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,12 +18,9 @@ public class ComprasProxyController {
   @RequestMapping(path="/api/compras",method={RequestMethod.GET,RequestMethod.POST})
   public ResponseEntity<byte[]> enviar(HttpServletRequest request,JwtAuthenticationToken usuario,
       @RequestBody(required=false) byte[] cuerpo){
-    String correo=null;
-    for(String claim:new String[]{"email","preferred_username","upn"}){
-      String valor=usuario.getToken().getClaimAsString(claim);
-      if(valor!=null && valor.matches("(?i)^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@duocuc\\.cl$")){correo=valor.toLowerCase(java.util.Locale.ROOT);break;}
-    }
-    if(correo==null)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Se requiere correo @duocuc.cl");
+    String correo = CorreoAutenticado.desde(usuario.getToken()).orElseThrow(() ->
+        new ResponseStatusException(HttpStatus.FORBIDDEN,
+            "Se requiere una cuenta @duocuc.cl o de un dominio onmicrosoft.com autorizada"));
     if(cuerpo!=null&&cuerpo.length>32768)throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE);
     String nombre = usuario.getToken().getClaimAsString("name");
     if (nombre == null || nombre.isBlank()) nombre = correo;

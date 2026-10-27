@@ -1,5 +1,6 @@
 package com.talleres360.bff.controller;
 
+import com.talleres360.bff.service.CorreoAutenticado;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URI;
@@ -17,11 +18,14 @@ public class AppointmentsProxyController {
   private static final String CUSTOMER_EMAIL_HEADER = "X-Customer-Email";
   private final RestClient ordersClient;
   private final String ordersUrl;
+  private final String internalKey;
 
   public AppointmentsProxyController(
-      RestClient ordersClient, @Value("${app.services.orders-url}") String ordersUrl) {
+      RestClient ordersClient, @Value("${app.services.orders-url}") String ordersUrl,
+      @Value("${app.services.internal-key}") String internalKey) {
     this.ordersClient = ordersClient;
     this.ordersUrl = ordersUrl;
+    this.internalKey = internalKey;
   }
 
   @RequestMapping(
@@ -42,6 +46,7 @@ public class AppointmentsProxyController {
         ordersClient
             .method(HttpMethod.valueOf(request.getMethod()))
             .uri(target)
+            .header("X-Internal-Key", internalKey)
             .header(CUSTOMER_EMAIL_HEADER, authenticatedEmail(authentication));
 
     Optional.ofNullable(request.getContentType())
@@ -51,6 +56,7 @@ public class AppointmentsProxyController {
     return spec.exchange(
         (req, res) -> {
           HttpHeaders headers = new HttpHeaders();
+          headers.setCacheControl("no-store");
           Optional.ofNullable(res.getHeaders().getContentType()).ifPresent(headers::setContentType);
           return ResponseEntity.status(res.getStatusCode())
               .headers(headers)
@@ -59,11 +65,8 @@ public class AppointmentsProxyController {
   }
 
   private String authenticatedEmail(JwtAuthenticationToken authentication) {
-    for (String claim : new String[] {"preferred_username", "email", "upn"}) {
-      String value = authentication.getToken().getClaimAsString(claim);
-      if (value != null && !value.isBlank()) return value;
-    }
-    throw new ResponseStatusException(
-        HttpStatus.UNAUTHORIZED, "La sesión no contiene un correo válido");
+    return CorreoAutenticado.desde(authentication.getToken()).orElseThrow(() ->
+        new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            "La sesión no contiene un correo permitido"));
   }
 }

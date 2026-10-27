@@ -1,4 +1,5 @@
 package com.talleres360.bff.controller;
+import com.talleres360.bff.service.CorreoAutenticado;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,12 +21,9 @@ public class RegistroProxyController {
       @Value("${app.services.internal-key}") String clave,ObjectMapper json){cliente=ordersClient;this.url=url;this.clave=clave;this.json=json;}
   @PostMapping public ResponseEntity<Void> solicitar(HttpServletRequest req,JwtAuthenticationToken usuario,@RequestBody byte[] cuerpo){
     if(cuerpo.length>4096)throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE);
-    String correo=null;
-    for(String claim:new String[]{"email","preferred_username","upn"}){
-      String valor=usuario.getToken().getClaimAsString(claim);
-      if(valor!=null&&valor.matches("(?i)^[^\\s@]+@duocuc\\.cl$")){correo=valor.toLowerCase(java.util.Locale.ROOT);break;}
-    }
-    if(correo==null)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Se requiere correo institucional autenticado");
+    String correo = CorreoAutenticado.desde(usuario.getToken()).orElseThrow(() ->
+        new ResponseStatusException(HttpStatus.FORBIDDEN,
+            "Se requiere una cuenta @duocuc.cl o de un dominio onmicrosoft.com autorizada"));
     String nombre;
     try { nombre=json.readTree(cuerpo).path("nombre").asText(""); }
     catch(java.io.IOException error){throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Solicitud inválida");}

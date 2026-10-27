@@ -1,5 +1,6 @@
 package com.talleres360.bff.config;
 
+import com.talleres360.bff.service.CorreoAutenticado;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -51,8 +52,10 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.GET, "/api/audit", "/api/audit/events")
                     .access(scopeAndRoles("Admin"))
                     .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**")
+                    .access(scopeAndRoles("Admin"))
+                    .requestMatchers(HttpMethod.GET, "/api/catalogo")
                     .access(scopeAndRoles("Admin", "Operador", "Cliente"))
-                    .requestMatchers(HttpMethod.POST, "/api/products")
+                    .requestMatchers(HttpMethod.POST, "/api/products", "/api/products/carga-inicial")
                     .access(scopeAndRoles("Admin"))
                     .requestMatchers(HttpMethod.PUT, "/api/products/**")
                     .access(scopeAndRoles("Admin"))
@@ -107,10 +110,9 @@ public class SecurityConfig {
           Collection<GrantedAuthority> authorities = new ArrayList<>(scopes.convert(jwt));
           List<String> roles = jwt.getClaimAsStringList("roles");
           if (roles != null) {
+            boolean correoPermitido = CorreoAutenticado.desde(jwt).isPresent();
             roles.forEach(role -> {
-              boolean institucional = java.util.stream.Stream.of("email","preferred_username","upn")
-                  .map(jwt::getClaimAsString).anyMatch(c -> c != null && c.matches("(?i)^[^\\s@]+@duocuc\\.cl$"));
-              if (!"Cliente".equals(role) || institucional)
+              if (!"Cliente".equals(role) || correoPermitido)
                 authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
             });
           }

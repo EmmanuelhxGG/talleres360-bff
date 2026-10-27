@@ -1,29 +1,38 @@
 # Talleres360 BFF
 
-Entrada autenticada desarrollada con Java 17, Spring Boot 3.5.6 y Spring Security OAuth2 Resource Server. Puerto **8080**. Rama **`bff-emmanuel`**. Repositorio: [EmmanuelhxGG/talleres360-bff](https://github.com/EmmanuelhxGG/talleres360-bff). Documentación del código al 6 de octubre de 2026.
+Entrada autenticada desarrollada con Java 17, Spring Boot 3.5.6 y Spring Security OAuth2 Resource Server. Puerto **8080**. Rama **`bff-emmanuel`**. Repositorio: [EmmanuelhxGG/talleres360-bff](https://github.com/EmmanuelhxGG/talleres360-bff). Documentación actualizada el **22 de octubre de 2026**. Las plantillas no contienen credenciales ni direcciones de una cuenta AWS concreta.
 
 El BFF valida tokens de Microsoft Entra ID, autoriza por scope/rol, deriva la identidad y reenvía peticiones. No tiene base propia ni calcula precios, stock o ventas.
 
 ## Registro, catálogo y compras
 
+`GET /api/catalogo` permite a los roles autorizados consultar productos sin cantidades
+de inventario. `GET /api/products` y su CRUD son exclusivos de Admin. El BFF
+construye `X-Actor-Role` desde las autoridades del JWT, nunca desde un encabezado
+proporcionado por el navegador. Agendamiento y su historial envían también la
+credencial interna a Órdenes. Las respuestas de inventario no se almacenan en caché.
+
 - `POST /api/registros` requiere JWT y scope `access_as_user`, sin exigir aún rol Cliente.
   Solo admite una identidad institucional y obtiene su correo del token, no del cuerpo.
   `GET /api/registros` requiere Admin. El alta y el rol se aprueban manualmente en Entra.
-- `GET/POST /api/compras` requiere Cliente con correo `@duocuc.cl` en el JWT.
+- `GET/POST /api/compras` requiere Cliente con correo `@duocuc.cl` o
+  `@tu-tenant.onmicrosoft.com` en el JWT. La misma política se aplica a registros,
+  agendamiento y seguimiento del cliente. El token debe pertenecer al issuer y
+  audiencia configurados; no se admiten otros tenants por el dominio del correo.
   El BFF deriva destinatario y nombre del token y no confía en identidad enviada por
   React. El carrito contiene solo UUID, productos y cantidades, sin RUT/teléfono/taller.
 - Crear órdenes (`POST /api/orders`) requiere Admin. Operador puede consultar y
   gestionar solicitudes existentes, pero no crearlas, tanto en UI como en la API.
 - Órdenes asigna una única sede desde el servidor. Ya no se envían regiones ni sucursales.
-- Cliente, Operador y Admin consultan productos/categorías. Solo Admin puede
+- Cliente, Operador y Admin consultan el catálogo de venta y categorías. Solo Admin puede
   crear, editar o dar de baja productos y categorías mediante `/api/products`
   y `/api/categorias`.
-- El comprobante se descarga con JWT por `/api/notifications/{id}/receipt`;
-  un cliente no puede descargar el de otro.
+- Los comprobantes nuevos son texto en el correo. `/api/notifications/{id}/receipt`
+  conserva la descarga autorizada de documentos históricos, no genera PDF nuevos.
 
 Todas las rutas de datos de API Gateway, incluido **POST /api/registros**, mantienen
 el authorizer JWT. No crear excepciones públicas para registro. Un usuario todavía
-habilitado en el tenant debe gestionar su acceso con la persona responsable de
+no habilitado en el tenant debe gestionar su acceso con la persona responsable de
 Entra ID. La aplicación no invita usuarios ni crea aprobaciones nativas en Entra.
 
 ## Arquitectura
@@ -63,6 +72,8 @@ Las rutas Java parten de `src/main/java/com/talleres360/bff/`.
 | `config/OrdersClientConfig.java` | Cliente HTTP con conexión de 3 segundos y lectura de 10 segundos. |
 | `controller/OrdersProxyController.java` | Órdenes; actor y rol obtenidos del JWT. |
 | `controller/AppointmentsProxyController.java` | Solicitudes; correo del cliente obtenido del JWT. |
+| `controller/ComprasProxyController.java` | Compras propias; correo y nombre del JWT, nombre codificado en UTF-8/Base64 para cabeceras HTTP. |
+| `controller/RegistroProxyController.java` | Solicitudes locales de acceso institucional, sin crear identidades en Entra. |
 | `controller/ProductsProxyController.java` | Catálogo con clave interna del servidor. |
 | `controller/ReportsProxyController.java` | Lectura de ventas con clave interna. |
 | `controller/SeguimientoProxyController.java`, `service/ProxySeguimiento.java` | Notificaciones y auditoría: rutas explícitas, rol/correo derivados del JWT y errores personalizados. |
@@ -89,16 +100,23 @@ Todos estos accesos requieren además token válido y scope:
 
 | Método y ruta | Roles |
 | --- | --- |
+| `POST /api/registros` | JWT y scope válidos; identidad institucional, sin exigir todavía rol Cliente |
+| `GET /api/registros` | Admin |
+| `GET/POST /api/compras` | Cliente institucional |
 | `GET/POST /api/appointments`, `GET /api/appointments/**` | Cliente |
 | `GET /api/orders`, `GET /api/orders/**` | Operador, Admin |
 | `POST /api/orders` | Admin |
 | `PUT /api/orders/**` | Operador, Admin |
 | `DELETE /api/orders/**` | Admin |
 | `GET /api/products`, `GET /api/products/**` | Cliente, Operador, Admin |
-| `POST /api/products`, `PUT /api/products/**` | Admin |
+| `POST /api/products`, `PUT/DELETE /api/products/**` | Admin |
+| `GET /api/categorias` | Cliente, Operador, Admin |
+| `POST /api/categorias`, `PUT/DELETE /api/categorias/**` | Admin |
 | `GET /api/reports/**` | Admin |
 | `GET /api/notifications` | Operador (tickets), Cliente (solo correos propios) |
 | `GET /api/audit`, `GET /api/audit/events` | Admin, solo lectura |
+| `GET /api/notifications/{id}/receipt` | Admin, Operador o Cliente; el servicio comprueba acceso al documento histórico |
+| `/api/messaging/rabbit/**` | Admin |
 
 Las demás rutas se deniegan. `/api/orders/{id}/stock` ya está cubierto por el proxy de órdenes. Los endpoints `/internal/stock-reservations`, `/internal/stock-consumptions` y `/internal/events` son de comunicación entre servidores, no del navegador.
 
@@ -116,6 +134,7 @@ CATALOG_URL=http://<IP_PRIVADA_EC2_CATALOGO>:8082
 REPORT_URL=http://<IP_PRIVADA_EC2_REPORTES>:8083
 NOTIFICATIONS_URL=http://<IP_PRIVADA_EC2_NOTIFICACIONES>:8084
 AUDIT_URL=http://<IP_PRIVADA_EC2_AUDITORIA>:8085
+RABBIT_ADMIN_URL=http://<IP_PRIVADA_EC2_RABBIT>:8086
 INTERNAL_API_KEY=<CLAVE_INTERNA_COMPARTIDA>
 CORS_ALLOWED_ORIGINS=http://localhost:5173
 SECURITY_LOG_LEVEL=INFO
@@ -125,7 +144,7 @@ Las URL son bases, sin `/api`, `/dev` ni rutas de recursos. La clave coincide co
 
 ### Notificaciones y auditoría
 
-La matriz sigue el caso: Notificaciones para Operador/Cliente; Auditoría para Admin según la sección específica de la pantalla `/audit`. La tabla general menciona Auditor, pero no se incorpora un cuarto rol en Azure sin una definición consistente.
+Notificaciones corresponde a Operador/Cliente y Auditoría a Admin. Los roles implementados son `Cliente`, `Operador` y `Admin`; no se requiere un cuarto rol para usar estas pantallas.
 
 El BFF construye `X-Actor-Role` y, para Cliente, `X-Customer-Email` a partir del token validado. Ignora las cabeceras de identidad y clave interna del navegador. Notificaciones aplica el filtro de propietario en la base, incluso cuando se solicita otro `orderId`. Admin no tiene acceso público a notificaciones y las rutas internas y de reintento no se publican.
 
@@ -133,9 +152,9 @@ El BFF construye `X-Actor-Role` y, para Cliente, `X-Customer-Email` a partir del
 
 API Gateway mantiene como integración el BFF. Si utiliza `ANY /{proxy+}` o una ruta equivalente, las nuevas rutas pasan por esa integración. Si utiliza rutas explícitas, añadir `GET /api/notifications`, `GET /api/audit` y `GET /api/audit/events`, con el mismo JWT authorizer. No publicar `/internal/**`. Este cambio de código no modifica la configuración de AWS.
 
-La revisión local del 8 de octubre verificó el flujo de los cinco servicios con bases H2 descartables y JWT simulados: creación, aceptación, informe, entrega, stock, ventas, notificaciones y auditoría. No certifica un login real en Azure ni el despliegue AWS. Los archivos de pruebas no forman parte de esta versión.
+Las comprobaciones locales con JWT firmados de prueba validan el contrato y los permisos, pero no sustituyen una sesión institucional real. El despliegue permite comprobar por separado los destinos internos y el rechazo sin token; un HTTP 401 confirma protección, no una compra autenticada completa.
 
-Compose lee `.env` y pasa sus valores al contenedor. Java/Maven directo no carga ese archivo automáticamente: exporta las variables en la terminal. Dentro de Docker, `localhost` identifica el propio contenedor. Si los micros se ejecutan en el host de Docker Desktop, puede usarse `http://host.docker.internal:8081`, `:8082` y `:8083`.
+Compose lee `.env` y pasa sus valores al contenedor. Java/Maven directo no carga ese archivo automáticamente: exporta las variables en la terminal. Dentro de Docker, `localhost` identifica el propio contenedor. Las URL de los cinco micros y del administrador Rabbit deben ser alcanzables desde BFF; en EC2 se utilizan destinos privados de la misma VPC.
 
 ## Construir y ejecutar
 
@@ -170,11 +189,11 @@ El destino de Gateway es el BFF. El frontend utiliza:
 https://<API_ID>.execute-api.<REGION>.amazonaws.com/dev
 ```
 
-Gateway debe reenviar `/dev/api/orders` como `/api/orders`. Configura rutas base y subrutas de orders, appointments, products y reports. Una ruta `/api/products` por sí sola no cubre `/api/products/{id}`.
+Gateway debe reenviar `/dev/api/orders` como `/api/orders`, sin conservar el prefijo del stage. La distribución usa `ANY /{proxy+}` hacia BFF, protegido con JWT, y preflight CORS sin token. Esta ruta cubre compras, registros, órdenes, agendamientos, productos, categorías, reportes, seguimiento y administración Rabbit. Si se usan rutas explícitas en otra instalación, también deben cubrir esas bases y sus subrutas. El BFF sigue denegando las rutas no autorizadas: el comodín no publica `/internal/**`.
 
 El autorizador JWT utiliza issuer v2, audiencia de la API y scope delegado. CORS permite el origen real del frontend, métodos `GET, POST, PUT, DELETE, OPTIONS` y encabezados `authorization, content-type`. El preflight OPTIONS no exige token.
 
-Los Security Groups permiten al BFF llegar a 8081–8083; Catálogo y Reportería también reciben Órdenes. PostgreSQL no se publica. El puerto 8080 es destino HTTP del Gateway en esta distribución: JWT no cifra por sí mismo ese tramo HTTP. SSH se limita a las IP autorizadas y los micros no se abren a Internet.
+Los Security Groups permiten al BFF llegar a los cinco micros (8081–8085) y al administrador Rabbit (8086). Órdenes llega a Catálogo, Reportería y Auditoría; Notificaciones recibe sus comandos por RabbitMQ. PostgreSQL no se publica. El puerto 8080 es destino HTTP del Gateway en esta distribución: JWT no cifra por sí mismo ese tramo HTTP. SSH se limita a orígenes autorizados y los puertos de los micros no se abren a Internet.
 
 | Cambio de dirección | Qué modificar |
 | --- | --- |
@@ -227,3 +246,8 @@ docker compose up -d --build
 ```
 
 Reiniciar no descarga Git ni reconstruye imágenes. No publicar `.env`, PEM, tokens o clave interna. Mantener `SECURITY_LOG_LEVEL=INFO` para operación normal. Esta documentación no modifica ni certifica una configuración AWS concreta.
+
+Si el despliegue ya utiliza archivos Compose adicionales, conserva los mismos
+`-f` al reconstruir y recrear. Consulta `docker compose ls` antes de modificarlo.
+No reemplaces un `.env` existente con `.env.example`. Los ejemplos usan marcadores
+para tenant, aplicaciones, hosts y claves; nunca publiques los valores de tu cuenta.

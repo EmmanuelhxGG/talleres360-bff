@@ -6,6 +6,7 @@ import java.net.URI;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
 
@@ -25,10 +26,13 @@ public class ProductsProxyController {
   }
 
   @RequestMapping(
-      path = {"/api/products", "/api/products/**", "/api/categorias", "/api/categorias/**"},
+      path = {"/api/products", "/api/products/**", "/api/categorias", "/api/categorias/**", "/api/catalogo"},
       method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE})
   public ResponseEntity<byte[]> proxy(
-      HttpServletRequest request, @RequestBody(required = false) byte[] body) throws IOException {
+      HttpServletRequest request, @RequestBody(required = false) byte[] body, JwtAuthenticationToken usuario) throws IOException {
+    String role = java.util.List.of("Admin", "Operador", "Cliente").stream()
+        .filter(r -> usuario.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_" + r)))
+        .findFirst().orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN));
     URI target =
         URI.create(
             catalogUrl
@@ -38,7 +42,8 @@ public class ProductsProxyController {
         client
             .method(HttpMethod.valueOf(request.getMethod()))
             .uri(target)
-            .header("X-Internal-Key", internalKey);
+            .header("X-Internal-Key", internalKey)
+            .header("X-Actor-Role", role);
     Optional.ofNullable(request.getContentType())
         .ifPresent(type -> spec.contentType(MediaType.parseMediaType(type)));
     if (body != null && body.length > 0) spec.body(body);
@@ -46,6 +51,7 @@ public class ProductsProxyController {
         (req, res) -> {
           HttpHeaders headers = new HttpHeaders();
           Optional.ofNullable(res.getHeaders().getContentType()).ifPresent(headers::setContentType);
+          headers.setCacheControl("no-store");
           return ResponseEntity.status(res.getStatusCode())
               .headers(headers)
               .body(res.getBody().readAllBytes());
