@@ -13,11 +13,16 @@ proporcionado por el navegador. Agendamiento y su historial envían también la
 credencial interna a Órdenes. Las respuestas de inventario no se almacenan en caché.
 
 - `POST /api/registros` requiere JWT y scope `access_as_user`, sin exigir aún rol Cliente.
-  Solo admite una identidad institucional y obtiene su correo del token, no del cuerpo.
+  Solo admite `@duocuc.cl` y obtiene su correo del token. Si se declara un correo en
+  el cuerpo debe coincidir con esa identidad; no se permite solicitar por otra persona.
+  Valida nombre, dominio, tamaño del cuerpo y límite de intentos por sujeto autenticado.
+  La ruta continúa privada en BFF y API Gateway: no resuelve el alta de una identidad
+  que todavía no puede autenticarse en el tenant.
   `GET /api/registros` requiere Admin. El alta y el rol se aprueban manualmente en Entra.
 - `GET/POST /api/compras` requiere Cliente con correo `@duocuc.cl` o
-  `@tu-tenant.onmicrosoft.com` en el JWT. La misma política se aplica a registros,
-  agendamiento y seguimiento del cliente. El token debe pertenecer al issuer y
+  `@tu-tenant.onmicrosoft.com` en el JWT. La misma política se aplica al
+  agendamiento y seguimiento del cliente; el alta nueva se restringe a Duoc.
+  El token debe pertenecer al issuer y
   audiencia configurados; no se admiten otros tenants por el dominio del correo.
   El BFF deriva destinatario y nombre del token y no confía en identidad enviada por
   React. El carrito contiene solo UUID, productos y cantidades, sin RUT/teléfono/taller.
