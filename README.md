@@ -19,15 +19,16 @@ credencial interna a Órdenes. Las respuestas de inventario no se almacenan en c
   La ruta continúa privada en BFF y API Gateway: no resuelve el alta de una identidad
   que todavía no puede autenticarse en el tenant.
   `GET /api/registros` requiere Admin. El alta y el rol se aprueban manualmente en Entra.
-- `GET/POST /api/compras` requiere Cliente con correo `@duocuc.cl` o
+- `GET/POST /api/compras` permite Cliente, Operador y Admin con correo `@duocuc.cl` o
   `@tu-tenant.onmicrosoft.com` en el JWT. La misma política se aplica al
   agendamiento y seguimiento del cliente; el alta nueva se restringe a Duoc.
   El token debe pertenecer al issuer y
   audiencia configurados; no se admiten otros tenants por el dominio del correo.
   El BFF deriva destinatario y nombre del token y no confía en identidad enviada por
   React. El carrito contiene solo UUID, productos y cantidades, sin RUT/teléfono/taller.
-- Crear órdenes (`POST /api/orders`) requiere Admin. Operador puede consultar y
-  gestionar solicitudes existentes, pero no crearlas, tanto en UI como en la API.
+- `POST /api/orders` y `DELETE /api/orders/**` se deniegan a todos los roles.
+  Las solicitudes nacen del carrito. Solo Operador gestiona estados e informes;
+  Admin consulta las órdenes sin modificarlas.
 - Órdenes asigna una única sede desde el servidor. Ya no se envían regiones ni sucursales.
 - Cliente, Operador y Admin consultan el catálogo de venta y categorías. Solo Admin puede
   crear, editar o dar de baja productos y categorías mediante `/api/products`
@@ -107,18 +108,18 @@ Todos estos accesos requieren además token válido y scope:
 | --- | --- |
 | `POST /api/registros` | JWT y scope válidos; identidad institucional, sin exigir todavía rol Cliente |
 | `GET /api/registros` | Admin |
-| `GET/POST /api/compras` | Cliente institucional |
+| `GET/POST /api/compras` | Cliente, Operador, Admin; solo sus compras propias |
 | `GET/POST /api/appointments`, `GET /api/appointments/**` | Cliente |
 | `GET /api/orders`, `GET /api/orders/**` | Operador, Admin |
-| `POST /api/orders` | Admin |
-| `PUT /api/orders/**` | Operador, Admin |
-| `DELETE /api/orders/**` | Admin |
-| `GET /api/products`, `GET /api/products/**` | Cliente, Operador, Admin |
+| `POST /api/orders` | Denegado |
+| `PUT /api/orders/**` | Operador |
+| `DELETE /api/orders/**` | Denegado |
+| `GET /api/products`, `GET /api/products/**` | Admin |
 | `POST /api/products`, `PUT/DELETE /api/products/**` | Admin |
 | `GET /api/categorias` | Cliente, Operador, Admin |
 | `POST /api/categorias`, `PUT/DELETE /api/categorias/**` | Admin |
 | `GET /api/reports/**` | Admin |
-| `GET /api/notifications` | Operador (tickets), Cliente (solo correos propios) |
+| `GET /api/notifications` | Operador (seguimiento de correos), Cliente (solo avisos propios) |
 | `GET /api/audit`, `GET /api/audit/events`, `GET /api/audit/solicitudes` | Admin, solo lectura |
 | `GET /api/notifications/{id}/receipt` | Admin, Operador o Cliente; el servicio comprueba acceso al documento histórico |
 | `/api/messaging/rabbit/**` | Admin |

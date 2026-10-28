@@ -41,8 +41,8 @@ public class SecurityConfig {
             auth ->
                 auth.requestMatchers(HttpMethod.POST, "/api/registros").hasAuthority(SCOPE)
                     .requestMatchers(HttpMethod.GET, "/api/registros").access(scopeAndRoles("Admin"))
-                    .requestMatchers(HttpMethod.GET, "/api/compras").access(scopeAndRoles("Cliente"))
-                    .requestMatchers(HttpMethod.POST, "/api/compras").access(scopeAndRoles("Cliente"))
+                    .requestMatchers(HttpMethod.GET, "/api/compras").access(scopeAndRoles("Cliente", "Operador", "Admin"))
+                    .requestMatchers(HttpMethod.POST, "/api/compras").access(scopeAndRoles("Cliente", "Operador", "Admin"))
                     .requestMatchers("/api/messaging/**")
                     .access(scopeAndRoles("Admin"))
                     .requestMatchers(HttpMethod.GET, "/api/notifications/*/receipt")
@@ -72,14 +72,14 @@ public class SecurityConfig {
                     // Las ordenes operativas completas contienen datos de todos los clientes.
                     .requestMatchers(HttpMethod.GET, "/api/orders", "/api/orders/**")
                     .access(scopeAndRoles("Admin", "Operador"))
-                    // Solo Admin crea; el Operador gestiona solicitudes ya recibidas.
+                    // Las solicitudes nacen del carrito; ningún rol crea órdenes manuales.
                     .requestMatchers(HttpMethod.POST, "/api/orders", "/api/orders/**")
-                    .access(scopeAndRoles("Admin"))
+                    .denyAll()
                     .requestMatchers(HttpMethod.PUT, "/api/orders/**")
-                    .access(scopeAndRoles("Admin", "Operador"))
-                    // Eliminar: solo administrador
+                    .access(scopeAndRoles("Operador"))
+                    // El historial se conserva; las solicitudes se cancelan, no se eliminan.
                     .requestMatchers(HttpMethod.DELETE, "/api/orders/**")
-                    .access(scopeAndRoles("Admin"))
+                    .denyAll()
                     .anyRequest()
                     .denyAll())
         .oauth2ResourceServer(
