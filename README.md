@@ -1,5 +1,18 @@
 # Talleres360 BFF
 
+## Actualización: identidad de las bandejas (28-10-2026)
+
+Cliente, Operador y Admin con scope pueden consultar `/api/notifications` y
+`/api/notifications/solicitudes`. Por defecto el ámbito es personal: se obtiene el
+correo del JWT para los tres roles, nunca de un encabezado del navegador.
+`ambito=operativo` queda reservado a Operador. El rol Admin no concede lectura
+global de notificaciones. Las demás autorizaciones no se amplían.
+
+El cambio de estado de productos usa `PUT /api/products/{id}/estado`, a través del
+proxy existente y solo Admin. Los códigos seguros de disponibilidad de Órdenes
+se conservan en las respuestas de compras; no se reemplazan por éxito.
+
+
 Entrada autenticada desarrollada con Java 17, Spring Boot 3.5.6 y Spring Security OAuth2 Resource Server. Puerto **8080**. Rama **`bff-emmanuel`**. Repositorio: [EmmanuelhxGG/talleres360-bff](https://github.com/EmmanuelhxGG/talleres360-bff). Documentación actualizada el **22 de octubre de 2026**. Las plantillas no contienen credenciales ni direcciones de una cuenta AWS concreta.
 
 El BFF valida tokens de Microsoft Entra ID, autoriza por scope/rol, deriva la identidad y reenvía peticiones. No tiene base propia ni calcula precios, stock o ventas.

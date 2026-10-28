@@ -41,7 +41,11 @@ public class ProxySeguimiento {
       return error(
           HttpStatus.FORBIDDEN, "Tu cuenta no tiene permisos para consultar esta información.");
     String correo = null;
-    if (rol.equals("Cliente")) {
+    boolean bandeja = request.getRequestURI().equals("/api/notifications")
+        || request.getRequestURI().equals("/api/notifications/solicitudes");
+    if (bandeja && "operativo".equals(request.getParameter("ambito")) && !rol.equals("Operador"))
+      return error(HttpStatus.FORBIDDEN, "El seguimiento operativo está reservado al operador.");
+    if (rol.equals("Cliente") || bandeja) {
       correo = CorreoAutenticado.desde(identidad.getToken()).orElse(null);
       if (correo == null)
         return error(
