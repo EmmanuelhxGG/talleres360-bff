@@ -4,6 +4,11 @@ Entrada autenticada desarrollada con Java 17, Spring Boot 3.5.6 y Spring Securit
 
 El BFF valida tokens de Microsoft Entra ID, autoriza por scope/rol, deriva la identidad y reenvía peticiones. No tiene base propia ni calcula precios, stock o ventas.
 
+Las notificaciones incluyen `GET /api/notifications/solicitudes` para agrupar los
+avisos por solicitud. Esta ruta exige el mismo scope y permisos de Cliente u
+Operador que el listado individual. El correo del cliente se obtiene del JWT;
+el navegador no puede indicar otra identidad para consultar sus avisos.
+
 ## Registro, catálogo y compras
 
 `GET /api/catalogo` permite a los roles autorizados consultar productos sin cantidades

@@ -8,3 +8,23 @@ target/
 !.env.example
 *.pem
 *.key
+
+# Credenciales y material privado: conservar solo plantillas sin valores reales.
+.env
+.env.*
+*.env
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+credenciales*.json
+secretos*.json
+credentials*.json
+secrets*.json
+client_secret*.json
+service-account*.json

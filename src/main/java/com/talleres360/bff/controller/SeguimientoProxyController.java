@@ -23,7 +23,7 @@ public class SeguimientoProxyController {
     this.auditoria = auditoria;
   }
 
-  @GetMapping("/api/notifications")
+  @GetMapping({"/api/notifications", "/api/notifications/solicitudes"})
   public ResponseEntity<byte[]> notificaciones(
       HttpServletRequest request, JwtAuthenticationToken identidad) {
     return proxy.consultar(notificaciones, request, identidad, Set.of("Operador", "Cliente"));
