@@ -223,7 +223,7 @@ Gateway debe reenviar `/dev/api/orders` como `/api/orders`, sin conservar el pre
 
 El autorizador JWT utiliza issuer v2, audiencia de la API y scope delegado. CORS permite el origen real del frontend, métodos `GET, POST, PUT, DELETE, OPTIONS` y encabezados `authorization, content-type`. El preflight OPTIONS no exige token.
 
-Los Security Groups permiten al BFF llegar a los cinco micros (8081–8085) y al administrador Rabbit (8086). Órdenes llega a Catálogo, Reportería y Auditoría; Notificaciones recibe sus comandos por RabbitMQ. PostgreSQL no se publica. El puerto 8080 es destino HTTP del Gateway en esta distribución: JWT no cifra por sí mismo ese tramo HTTP. SSH se limita a orígenes autorizados y los puertos de los micros no se abren a Internet.
+Los Security Groups permiten al BFF llegar a los cinco micros (8081–8085) y al administrador Rabbit (8086). Órdenes llega a Catálogo, Reportería y Auditoría; Notificaciones recibe sus comandos por RabbitMQ. Los cinco microservicios comparten la base PostgreSQL `talleres360` en la EC2 de Órdenes. El puerto 5432 admite únicamente sus orígenes privados autorizados, con un usuario por servicio y permisos sobre sus propias tablas; el BFF no accede a SQL. El puerto 8080 es destino HTTP del Gateway en esta distribución: JWT no cifra por sí mismo ese tramo HTTP. SSH se limita a orígenes autorizados y los puertos de los micros no se abren a Internet.
 
 | Cambio de dirección | Qué modificar |
 | --- | --- |
