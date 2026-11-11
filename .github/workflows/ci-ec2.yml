@@ -1,0 +1,81 @@
+name: CI y entrega a EC2
+
+on:
+  pull_request:
+    branches: [bff-emmanuel]
+  push:
+    branches: [bff-emmanuel]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-ec2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Compilar y ejecutar pruebas
+        run: mvn --batch-mode --no-transfer-progress verify
+      - name: Preparar JAR y manifiesto
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          jars=(target/*.jar)
+          [[ ${#jars[@]} == 1 ]]
+          mkdir entrega
+          jar tf "${jars[0]}" > "$RUNNER_TEMP/archivos-jar"
+          grep -q '^BOOT-INF/classes/' "$RUNNER_TEMP/archivos-jar"
+          cp "${jars[0]}" entrega/app.jar
+          huella=$(sha256sum entrega/app.jar | cut -d ' ' -f 1)
+          printf '%s %s\n' "$GITHUB_SHA" "$huella" > entrega/version.txt
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: github.event_name == 'push'
+        with:
+          name: entrega-ec2
+          path: entrega/
+          if-no-files-found: error
+          retention-days: 3
+
+  publicar:
+    if: github.event_name == 'push'
+    needs: verificar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: entrega-ec2
+          path: entrega
+      - name: Publicar versión validada
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$GITHUB_REF_NAME" --jq .object.sha)
+          if [[ "$head" != "$GITHUB_SHA" ]]; then
+            echo "Ya existe un commit posterior en $GITHUB_REF_NAME"
+            exit 0
+          fi
+          if ! gh release view ci-ec2 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create ci-ec2 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title 'Entrega automática a EC2' --prerelease --latest=false \
+              --notes 'El archivo version.txt identifica el commit validado y el SHA-256 del JAR.'
+          fi
+          # El manifiesto se publica al final. La EC2 verifica la huella antes de reiniciar.
+          gh release upload ci-ec2 entrega/app.jar --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload ci-ec2 entrega/version.txt --repo "$GITHUB_REPOSITORY" --clobber
