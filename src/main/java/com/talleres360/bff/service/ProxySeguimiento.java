@@ -45,7 +45,10 @@ public class ProxySeguimiento {
         || request.getRequestURI().equals("/api/notifications/solicitudes");
     if (bandeja && "operativo".equals(request.getParameter("ambito")) && !rol.equals("Operador"))
       return error(HttpStatus.FORBIDDEN, "El seguimiento operativo está reservado al operador.");
-    if (rol.equals("Cliente") || bandeja) {
+    boolean taller = bandeja && "taller".equals(request.getParameter("ambito"));
+    if (taller && rol.equals("Cliente"))
+      return error(HttpStatus.FORBIDDEN, "Los avisos del taller requieren un rol de gestión.");
+    if (rol.equals("Cliente") || (bandeja && !taller)) {
       correo = CorreoAutenticado.desde(identidad.getToken()).orElse(null);
       if (correo == null)
         return error(
